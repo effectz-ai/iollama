@@ -8,14 +8,17 @@ from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, ServiceCon
 
 
 llm = Ollama(
-    model="llama2"
+    model="llama2",
+    request_timeout=300.0
 )
-embeddings = HuggingFaceEmbedding(model_name="BAAI/bge-small-en")
-service_context = ServiceContext.from_defaults(llm=llm,embed_model=embeddings)
+Settings.llm = llm
+Settings.embed_model = HuggingFaceEmbedding(
+    model_name="BAAI/bge-small-en-v1.5"
+)
 
 # read documents from docs folder
 reader = SimpleDirectoryReader(
-    input_dir="./docs",
+    input_dir="./docs-red-team",
     recursive=True,
 )
 docs = reader.load_data()
@@ -28,15 +31,18 @@ vector_store = QdrantVectorStore(
     client=client,
 )
 storage_context = StorageContext.from_defaults(vector_store=vector_store)
-index = VectorStoreIndex.from_documents(docs, service_context=service_context, storage_context=storage_context)
+index = VectorStoreIndex.from_documents(docs, storage_context=storage_context)
 
-query_engine = index.as_query_engine(streaming=True)
-streaming_response = query_engine.query("what is chitra.")
-streaming_response.print_response_stream()
+#query_engine = index.as_query_engine(streaming=True)
+#streaming_response = query_engine.query("what is chitra.")
+#streaming_response.print_response_stream()
 
-#Settings.llm = llm
-#Settings.embed_model = embed_model
+query_engine = index.as_query_engine()
 
+while True:
+    input_question = input("Enter your question (or 'exit' to quit): ")
+    if input_question.lower() == 'exit':
+        break
 
-#response = llm.complete("What is the history of LEGO?")
-#print(response)
+    response = query_engine.query(input_question)
+    print(response)
