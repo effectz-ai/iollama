@@ -6,7 +6,6 @@ Werkzeug==2.2.2
 flask-cors
 
 langchain==0.0.352
-chromadb==0.3.29
 tiktoken
 unstructured
 unstructured[local-pdf]
@@ -14,7 +13,5 @@ unstructured[local-inference]
 
 llama-index
 llama-index-llms-ollama
-llama-index-vector-stores-qdrant
 llama-index-embeddings-huggingface
-qdrant_client
 torch
