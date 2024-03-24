@@ -45,8 +45,6 @@ def init_index(embed_model):
 def init_query_engine(index):
     global query_engine
 
-    #index = VectorStoreIndex.from_vector_store(vector_store)
-
     # custome template
     template = (
         "Imagine you are an advanced AI expert in cyber security laws, with access to all current and relevant legal documents, "
