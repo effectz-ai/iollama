@@ -45,7 +45,7 @@ def init_index(embed_model):
 def init_query_engine(index):
     global query_engine
 
-    # custome template
+    # custome prompt template
     template = (
         "Imagine you are an advanced AI expert in cyber security laws, with access to all current and relevant legal documents, "
         "case studies, and expert analyses. Your goal is to provide insightful, accurate, and concise answers to questions in this domain.\n\n"
