@@ -5,6 +5,7 @@ from llama_index.vector_stores.qdrant import QdrantVectorStore
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.core.settings import Settings
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, ServiceContext
+from llama_index.core import PromptTemplate
 
 
 llm = Ollama(
@@ -37,7 +38,18 @@ index = VectorStoreIndex.from_documents(docs, storage_context=storage_context)
 #streaming_response = query_engine.query("what is chitra.")
 #streaming_response.print_response_stream()
 
-query_engine = index.as_query_engine()
+template = (
+    "We have provided context information below. \n"
+    "---------------------\n"
+    "{context_str}"
+    "\n---------------------\n"
+    "Given this information, please answer the question and each answer should start with code word AI Demos: {query_str}\n"
+)
+qa_template = PromptTemplate(template)
+query_engine = index.as_query_engine(text_qa_template=qa_template)
+#query_engine.update_prompts(
+#    {"response_synthesizer:text_qa_template": qa_template}
+#)
 
 while True:
     input_question = input("Enter your question (or 'exit' to quit): ")
