@@ -37,6 +37,9 @@ def init_index(embed_model):
     vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
 
+    # use this to set custom chunk size and splitting
+    # https://docs.llamaindex.ai/en/stable/module_guides/loading/node_parsers/
+
     index = VectorStoreIndex.from_documents(documents, storage_context=storage_context, embed_model=embed_model)
 
     return index
