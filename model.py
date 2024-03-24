@@ -1,104 +1,99 @@
-from langchain_community.llms import Ollama
-from langchain.chat_models import ChatOpenAI
-from langchain.document_loaders import PyPDFLoader
-from langchain.document_loaders import DirectoryLoader
-from langchain.document_loaders.recursive_url_loader import RecursiveUrlLoader
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import Chroma
-from langchain.chains import ConversationalRetrievalChain
-from langchain.memory import ConversationBufferMemory
-from langchain.llms import OpenAI
-from langchain.embeddings import HuggingFaceEmbeddings
-from bs4 import BeautifulSoup as Soup
-from langchain.utils.html import (PREFIXES_TO_IGNORE_REGEX,
-                                  SUFFIXES_TO_IGNORE_REGEX)
+import chromadb
+import logging
+import sys
 
-from config import *
+from llama_index.llms.ollama import Ollama
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.core import (Settings, VectorStoreIndex, SimpleDirectoryReader, PromptTemplate)
+from llama_index.core import StorageContext
+from llama_index.vector_stores.chroma import ChromaVectorStore
+
 import logging
 import sys
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-global conversation
-conversation = None
+global query_engine
+query_engine = None
+
+def init_llm():
+    llm = Ollama(model="llama2", request_timeout=300.0)
+    embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
+
+    Settings.llm = llm
+    Settings.embed_model = embed_model
 
 
-def init_index():
-    if not INIT_INDEX:
-        logging.info("continue without initializing index")
-        return
-
-    # scrape data from web
-    documents = RecursiveUrlLoader(
-        TARGET_URL,
-        max_depth=4,
-        extractor=lambda x: Soup(x, "html.parser").text,
-        prevent_outside=True,
-        use_async=True,
-        timeout=600,
-        check_response_status=True,
-        # drop trailing / to avoid duplicate pages.
-        link_regex=(
-            f"href=[\"']{PREFIXES_TO_IGNORE_REGEX}((?:{SUFFIXES_TO_IGNORE_REGEX}.)*?)"
-            r"(?:[\#'\"]|\/[\#'\"])"
-        ),
-    ).load()
+def init_index(embed_model):
+    reader = SimpleDirectoryReader(input_dir="./docs", recursive=True)
+    documents = reader.load_data()
 
     logging.info("index creating with `%d` documents", len(documents))
 
-    # split text
-    # this chunk_size and chunk_overlap effects to the prompt size
-    # execeed promt size causes error `prompt size exceeds the context window size and cannot be processed`
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    documents = text_splitter.split_documents(documents)
+    chroma_client = chromadb.EphemeralClient()
+    chroma_collection = chroma_client.create_collection("iollama")
 
-    # create embeddings with huggingface embedding model `all-MiniLM-L6-v2`
-    # then persist the vector index on vector db
-    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    vectordb = Chroma.from_documents(
-        documents=documents,
-        embedding=embeddings,
-        persist_directory=INDEX_PERSIST_DIRECTORY
+    vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+    storage_context = StorageContext.from_defaults(vector_store=vector_store)
+
+    index = VectorStoreIndex.from_documents(documents, storage_context=storage_context, embed_model=embed_model)
+
+    return index
+
+
+def init_query_engine(index):
+    global query_engine
+
+    #index = VectorStoreIndex.from_vector_store(vector_store)
+
+    # custome template
+    template = (
+        "Imagine you are an advanced AI expert in cyber security laws, with access to all current and relevant legal documents, "
+        "case studies, and expert analyses. Your goal is to provide insightful, accurate, and concise answers to questions in this domain.\n\n"
+        "Here is some context related to the query:\n"
+        "-----------------------------------------\n"
+        "{context_str}\n"
+        "-----------------------------------------\n"
+        "Considering the above information, please respond to the following inquiry with detailed references to applicable laws, "
+        "precedents, or principles where appropriate:\n\n"
+        "Question: {query_str}\n\n"
+        "Answer succinctly, starting with the phrase 'According to cyber security law,' and ensure your response is understandable to someone without a legal background."
     )
-    vectordb.persist()
+    qa_template = PromptTemplate(template)
+
+    # build query engine with custom template
+    # text_qa_template specifies custom template
+    # similarity_top_k configure the retriever to return the top 3 most similar documents,
+    # the default value of similarity_top_k is 2
+    query_engine = index.as_query_engine(text_qa_template=qa_template, similarity_top_k=3)
+
+    return query_engine
 
 
-def init_conversation():
-    global conversation
+def chat(input_question, user):
+    global query_engine
 
-    # load index
-    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    vectordb = Chroma(persist_directory=INDEX_PERSIST_DIRECTORY,embedding_function=embeddings)
+    response = query_engine.query(input_question)
+    logging.info("got response from llm - %s", response)
 
-    # llama2 llm which runs with ollama
-    # ollama expose an api for the llam in `localhost:11434`
-    llm = Ollama(
-        model="llama2",
-        base_url="http://localhost:11434",
-        verbose=True,
-    )
-
-    # create conversation
-    conversation = ConversationalRetrievalChain.from_llm(
-        llm,
-        retriever=vectordb.as_retriever(),
-        return_source_documents=True,
-        verbose=True,
-    )
+    return response.response
 
 
-def chat(question, user_id):
-    global conversation
+def chat_cmd():
+    global query_engine
 
-    chat_history = []
-    response = conversation({"question": question, "chat_history": chat_history})
-    answer = response['answer']
+    while True:
+        input_question = input("Enter your question (or 'exit' to quit): ")
+        if input_question.lower() == 'exit':
+            break
 
-    logging.info("got response from llm - %s", answer)
+        response = query_engine.query(input_question)
+        logging.info("got response from llm - %s", response)
 
-    # TODO save history
 
-    return answer
+if __name__ == '__main__':
+    init_llm()
+    index = init_index(Settings.embed_model)
+    init_query_engine(index)
+    chat_cmd()
