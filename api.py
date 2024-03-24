@@ -4,9 +4,9 @@ from flask import request
 from flask_cors import CORS
 import logging
 import sys
-from model import init_index
-from model import init_conversation
-from model import chat
+from iollama import init_index
+from iollama import init_conversation
+from iollama import chat
 from config import *
 
 app = Flask(__name__)
