@@ -1,5 +1,8 @@
 __pycache__/
 *.py[cod]
-
+00
 data
 .venv
+.myenv
+./queryEngine/queryengine
+./RAGIndexer/ragindex

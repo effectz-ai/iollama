@@ -1,8 +1,38 @@
-version: '3'
+version: '3.8'
 services:
   ollama:
     image: ollama/ollama
     volumes:
-      - /private/var/services/ollama:/root/.ollama
+      - llm_data:/root/.ollama
     ports:
       - 11434:11434
+    # after service up run ` docker exec -it ollama ollama run llama2`
+
+  chromadb:
+    image: chromadb/chroma
+    ports:
+      - 8000:8000
+    volumes:
+      - chroma_data:/chroma/chroma
+    env_file:
+      - chromaDB/.chroma_env
+  ragIndexer:
+    image: effectzai/ragindexer
+    ports:
+      - 5000:5000
+    volumes:
+      - rag_data:/documents
+  queryEngine:
+      image: effectzai/query_engine
+      ports:
+        - 7655:7654
+
+volumes:
+  chroma_data:
+    driver: local
+  backups:
+    driver: local
+  llm_data:
+    driver: local
+  rag_data:
+    driver: local

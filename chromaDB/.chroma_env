@@ -1,0 +1,3 @@
+CHROMA_SERVER_AUTH_CREDENTIALS="test-token_Naalin_83290830283"
+CHROMA_SERVER_AUTH_CREDENTIALS_PROVIDER="chromadb.auth.token.TokenConfigServerAuthCredentialsProvider"
+CHROMA_SERVER_AUTH_PROVIDER="chromadb.auth.token.TokenAuthServerProvider"

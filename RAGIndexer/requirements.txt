@@ -1,0 +1,9 @@
+chromadb~=0.4.24
+llama_index
+llama-index-embeddings-huggingface
+textract
+Flask==2.0.1
+Werkzeug==2.2.2
+flask-cors
+llama-index-vector-stores-chroma
+waitress

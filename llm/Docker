@@ -1,0 +1,4 @@
+FROM ollama/ollama
+ENTRYPOINT ["/bin/ollama"]
+CMD ["serve"]
+RUN /bin/ollama pull llama2
