@@ -3,9 +3,6 @@ FROM python:3.11.9
 
 USER 10014
 
-RUN apt-get update && apt-get install -y \
-    libtesseract-dev \
-    tesseract-ocr
 # Copy only the requirements file
 COPY requirements.txt .
 
