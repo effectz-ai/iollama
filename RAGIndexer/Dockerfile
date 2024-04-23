@@ -1,10 +1,7 @@
 FROM python:3.11.9
 # Install system dependencies
 
-RUN groupadd -g 10014 myuser && \
-    useradd -r -u 10014 -g myuser myuser
-
-USER myuser
+USER 10014
 
 RUN apt-get update && apt-get install -y \
     libtesseract-dev \
