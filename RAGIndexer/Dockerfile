@@ -5,10 +5,8 @@ USER 10014
 
 # Copy only the requirements file
 COPY requirements.txt .
-RUN python3 -m venv env
-RUN source ./env/bin/activate
 
-RUN pip install -r requirements.txt
+RUN sudo pip install -r requirements.txt
 ENV PYTHONUNBUFFERED 1
 ENV FLASK_APP=rag_indexer.py
 ENV FLASK_RUN_HOST 0.0.0.0
