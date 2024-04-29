@@ -4,6 +4,7 @@ sentence-transformers
 Flask==2.0.1
 Werkzeug==2.2.2
 flask-cors
+textract==1.6.5
 
 langchain==0.0.352
 tiktoken

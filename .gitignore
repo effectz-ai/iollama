@@ -1,5 +1,5 @@
 __pycache__/
 *.py[cod]
-
-data
-.venv
+chatAPI.py
+app.log
+uploads
