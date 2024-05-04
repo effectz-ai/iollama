@@ -21,14 +21,14 @@ from llama_index.vector_stores.chroma import ChromaVectorStore
 from werkzeug.utils import secure_filename
 
 HTTP_PORT = os.getenv('HTTP_PORT', 7654)
-
+manual_process_document=False
 
 class Config:
-    UPLOAD_FOLDER = '/documents/'
+    UPLOAD_FOLDER = './documents/'
 
 
 embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
-
+Settings.embed_model = embed_model
 app = Flask(__name__)
 app.config.from_object(Config)
 CORS(app)
@@ -39,34 +39,6 @@ chromaClient: ClientAPI
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
-def extract_text_from_docx(file_path):
-    text = ""
-    try:
-        import docx
-        doc = docx.Document(file_path)
-        for para in doc.paragraphs:
-            text += para.text + '\n'
-    except ImportError:
-        pass
-    return text
-
-
-def extract_text_from_pdf(file_path):
-    text = ""
-    with open(file_path, 'rb') as f:
-        pdf_text = textract.process(file_path)
-        text = pdf_text.decode('utf-8')
-    return text
-
-
-def extract_text_from_txt(file_path):
-    text = ""
-    with open(file_path, 'r', encoding='utf-8') as f:
-        text = f.read()
-    return text
-
 
 def extract_metadata(file):
     filename = secure_filename(file.filename)
@@ -93,11 +65,34 @@ def clear_collection_from_db():
         return jsonify({'error': str(e)}), 400
     return jsonify({'success': True}), 200
 
+# extract content from documents
+def extract_content(file_path):
+    _, file_extension = os.path.splitext(file_path)
+    file_extension = file_extension.lower()
+    if file_extension == '.pdf':
+        text = textract.process(file_path)
+        extracted_text = text.decode('utf-8')
+    elif file_extension == '.docx':
+        doc = docx.Document(file_path)
+        extracted_text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
+    elif file_extension == '.txt':
+        with open(file_path, 'r') as f:
+            extracted_text = f.read()
+    else:
+        extracted_text = None
+    return extracted_text
+
 
 def add_to_index_db(files: list, collection_name: str):
     start_time = time.time()
+    document_list = []
+    embeddings_list = []
+    metadata_list = []
+    id_list = []
+    collection_ref: Collection
+    sub_fodler = os.path.join(app.config['UPLOAD_FOLDER'], collection_name)
+    total_count=0
     try:
-        sub_fodler = os.path.join(app.config['UPLOAD_FOLDER'], collection_name)
         if not os.path.exists(sub_fodler):
             os.makedirs(sub_fodler)
         for file in files:
@@ -108,41 +103,37 @@ def add_to_index_db(files: list, collection_name: str):
                     file_path = os.path.join(sub_fodler, filename)
                     file.save(file_path, )
                     # get hash of the file
-                    hash = str(file.__hash__())
-
-                    text = ""
-                    if filename.endswith('.pdf'):
-                        text = extract_text_from_pdf(file_path)
-                    elif filename.endswith('.docx'):
-                        text = extract_text_from_docx(file_path)
-                    elif filename.endswith('.txt'):
-                        text = extract_text_from_txt(file_path)
-
-                    metadata = extract_metadata(file)
-
-                    reader = SimpleDirectoryReader(input_dir=sub_fodler, recursive=True)
-                    documents = reader.load_data()
-                    collection_ref: Collection = get_or_create_collection(collection_name)
-                    vector_store = ChromaVectorStore(chroma_collection=collection_ref)
-                    storage_context = StorageContext.from_defaults(vector_store=vector_store)
-                    VectorStoreIndex.from_documents(documents, storage_context=storage_context,
-                                                    embed_model=Settings.embed_model)
-
-                    # collection_ref.add(documents=[text], metadatas=[metadata], ids=[hash])
+                    if(manual_process_document):
+                        extracted_text = extract_content(file_path)
+                        metadata = extract_metadata(file)
+                        document_list.append(extracted_text)
+                        embeddings_list.append(embed_model._embed(extracted_text))
+                        metadata_list.append(metadata)
+                        id_list.append("id_" + file.filename)
                 except Exception as e:
                     logging.error(e)
                     return jsonify({'error': str(e)}), 400
-                # finally:
-                #     os.remove(file_path)  # Remove the uploaded file
+        if(manual_process_document):
+            collection_ref = get_or_create_collection(collection_name)
+            collection_ref.add(documents=document_list, metadatas=metadata_list, ids=id_list,embeddings=embeddings_list)
+            total_count=collection_ref.count()
+        else:
+            reader = SimpleDirectoryReader(input_dir=sub_fodler, recursive=True)
+            documents = reader.load_data()
+            collection_ref: Collection = get_or_create_collection(collection_name)
+            vector_store = ChromaVectorStore(chroma_collection=collection_ref)
+            storage_context = StorageContext.from_defaults(vector_store=vector_store)
+            VectorStoreIndex.from_documents(documents, storage_context=storage_context,
+                                            embed_model=Settings.embed_model)
+            total_count=collection_ref.count()
     except Exception as e:
         logging.error(e)
         return jsonify({'error': str(e)}), 400
     end_time = time.time()
-    return jsonify({'doc_count': len(files), 'time_taken': end_time - start_time}), 200
+    return jsonify({'doc_count': total_count, 'time_taken': end_time - start_time}), 200
 
 
 def init_indexer():
-    Settings.embed_model = embed_model
     global chromaClient
     logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -176,7 +167,6 @@ def rename_collection(collection: str, new_name: str):
 def init_temp_file_folder():
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
         os.makedirs(app.config['UPLOAD_FOLDER'])
-
 
 if __name__ == '__main__':
     print("running")
