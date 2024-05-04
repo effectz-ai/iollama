@@ -24,7 +24,7 @@ app = Flask(__name__)
 CORS(app)
 
 
-@app.route('/api/question', methods=['POST'])
+@app.route('/api/chat', methods=['POST'])
 def post_question():
     json = request.get_json(silent=True)
     question = json['question']
@@ -61,15 +61,10 @@ def init_db():
 
 def init_index(collection_name: str):
     chroma_collection: Collection = chroma_client.get_collection(collection_name)
-
     vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
-    storage_context = StorageContext.from_defaults(vector_store=vector_store)
-
     # use this to set custom chunk size and splitting
     # https://docs.llamaindex.ai/en/stable/module_guides/loading/node_parsers/
-
     index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
-
     return index
 
 
