@@ -19,7 +19,7 @@ llm: Ollama
 chroma_client: ClientAPI
 query_engine = None
 
-HTTP_PORT = os.getenv('HTTP_PORT', 7654)
+HTTP_PORT = os.getenv('HTTP_PORT', 7655)
 app = Flask(__name__)
 CORS(app)
 
